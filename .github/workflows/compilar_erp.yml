@@ -1,0 +1,33 @@
+name: Compilar ERP Texas Farm (Windows)
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+    runs-on: windows-latest 
+
+    steps:
+    - name: 1. Baixar o código do repositório
+      uses: actions/checkout@v4
+
+    - name: 2. Instalar o Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11' 
+
+    - name: 3. Instalar Bibliotecas do Texas Farm
+      run: |
+        python -m pip install --upgrade pip
+        pip install customtkinter pandas openpyxl pyinstaller
+
+    - name: 4. Compilar o Software (Gerar o .EXE)
+      run: |
+        pyinstaller --noconfirm --onefile --windowed --name "TexasFarm_ERP_Hub" main.py
+
+    - name: 5. Entregar o arquivo pronto
+      uses: actions/upload-artifact@v4
+      with:
+        name: Software_TexasFarm_Pronto
+        path: dist/TexasFarm_ERP_Hub.exe
+        retention-days: 1
