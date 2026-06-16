@@ -141,7 +141,7 @@ try:
 
         def processar_aba_selecionada(self, n_aba):
             self.processar_lotes_da_planilha(n_aba)
-
+            
         def processar_lotes_da_planilha(self, n_aba):
             df = self.abas_disponiveis[n_aba]
             self.lotes_na_aba = {}
@@ -154,16 +154,18 @@ try:
                 if "LOTE:" in l_str:
                     lote_atual = str(linha[0]).strip().upper() if "LOTE:" in str(linha[0]).upper() else str(linha[1]).strip().upper()
                     
-                    # NOVO: Inicia a grade zerada
+                    # Inicia a grade zerada
                     grade_lote = {t: 0 for t in self.tamanhos_alvo}
                     
-                    # NOVO: Scanner Vertical - vasculha as próximas 20 linhas do Excel
+                    # SCANNER VERTICAL TURBINADO: Vasculha as próximas 20 linhas e várias colunas
                     for r in range(i, min(i + 20, len(df))):
-                        celula_e = str(df.iloc[r, 4]).upper() if len(df.columns) > 4 else ""
-                        for t in self.tamanhos_alvo:
-                            m = re.search(rf"\b{t}\b\s*[=:]\s*(\d+)", celula_e)
-                            if m and grade_lote[t] == 0: 
-                                grade_lote[t] = int(m.group(1))
+                        for col_idx in range(2, min(7, len(df.columns))): # Lê as colunas C, D, E, F
+                            celula = str(df.iloc[r, col_idx]).upper()
+                            for t in self.tamanhos_alvo:
+                                # Aceita PP=2, PP-2, PP:2 com ou sem espaço
+                                m = re.search(rf"\b{t}\b\s*[=:\-]\s*(\d+)", celula)
+                                if m and grade_lote[t] == 0: 
+                                    grade_lote[t] = int(m.group(1))
 
                     self.lotes_na_aba[lote_atual] = {"itens": [], "aba": n_aba, "grade": grade_lote}
                     dados_l = self.lotes_na_aba[lote_atual]["itens"]
@@ -175,7 +177,7 @@ try:
                     try:
                         try:
                             r_val = str(linha[0]).replace(',', '.').strip()
-                            rolos_qte = int(float(r_val)) if r_val.upper() not in ["NAN", "NONE", ""] else 0
+                            rolos_qte = int(round(float(r_val))) if r_val.upper() not in ["NAN", "NONE", ""] else 0
                         except:
                             rolos_qte = 0
                             
@@ -183,7 +185,9 @@ try:
                             'rolos': rolos_qte,
                             'cor': str(linha[1]).strip(),
                             'ref': str(linha[3]).strip() if pd.notna(linha[3]) else "Sem Ref",
-                            'total': int(float(str(linha[2]).replace(',','.')))
+                            
+                            # O SEGREDO REVELADO: O round() arredonda os decimais escondidos do Excel!
+                            'total': int(round(float(str(linha[2]).replace(',','.'))))
                         })
                     except: continue
 
@@ -194,7 +198,8 @@ try:
                 self.carregar_dados_lote(n[0])
             else:
                 self.menu_lotes.set("-")
-
+                
+       #-----------------------------------------
         def carregar_dados_lote(self, n):
             if n == "-": return
             
