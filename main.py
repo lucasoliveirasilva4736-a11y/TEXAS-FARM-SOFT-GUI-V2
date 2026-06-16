@@ -84,11 +84,19 @@ try:
             self.label_soma_total = ctk.CTkLabel(self.frame_res, text="TOTAL DO LOTE: 0 PEÇAS", font=("Roboto", 18, "bold"))
             self.label_soma_total.pack(pady=10)
 
+            # --- FORMATAÇÃO DA TABELA (FONTE MAIOR) ---
+            style = ttk.Style()
+            style.theme_use("clam")
+            style.configure("Treeview", font=("Roboto", 12), rowheight=30, background="#2b2b2b", foreground="white")
+            style.configure("Treeview.Heading", font=("Roboto", 13, "bold"), background="#3b8ed0", foreground="white")
+            style.map("Treeview", background=[('selected', '#1f538d')])
+
             self.colunas = ("REF", "COR") + tuple(self.tamanhos_alvo) + ("TOTAL",)
             self.tabela = ttk.Treeview(self.frame_res, columns=self.colunas, show="headings")
             for col in self.colunas:
                 self.tabela.heading(col, text=col)
-                self.tabela.column(col, width=60, anchor="center")
+                largura = 120 if col in ["REF", "COR"] else 55
+                self.tabela.column(col, width=largura, anchor="center")
             self.tabela.pack(fill="both", expand=True)
 
         # --- FUNÇÕES DO PCP ---
@@ -102,17 +110,17 @@ try:
             self.destroy()
 
         def setup_grade_ui(self):
-            ctk.CTkLabel(self.frame_grades, text="ADULTO / PLUS", font=("Roboto", 11, "bold"), text_color="#3b8ed0").grid(row=0, column=0, columnspan=10, sticky="w", padx=5, pady=(5,2))
+            ctk.CTkLabel(self.frame_grades, text="ADULTO / PLUS", font=("Roboto", 12, "bold"), text_color="#3b8ed0").grid(row=0, column=0, columnspan=10, sticky="w", padx=5, pady=(5,2))
             for i, tam in enumerate(self.tamanhos_alvo[:10]):
-                ctk.CTkLabel(self.frame_grades, text=tam).grid(row=1, column=i, padx=6)
-                self.entradas_grade[tam] = ctk.CTkEntry(self.frame_grades, width=52, justify="center")
+                ctk.CTkLabel(self.frame_grades, text=tam, font=("Roboto", 12)).grid(row=1, column=i, padx=6)
+                self.entradas_grade[tam] = ctk.CTkEntry(self.frame_grades, width=55, justify="center")
                 self.entradas_grade[tam].insert(0, "0")
                 self.entradas_grade[tam].grid(row=2, column=i, padx=2, pady=2)
 
-            ctk.CTkLabel(self.frame_grades, text="INFANTIL (2-14)", font=("Roboto", 11, "bold"), text_color="#3b8ed0").grid(row=3, column=0, columnspan=10, sticky="w", padx=5, pady=(10,2))
+            ctk.CTkLabel(self.frame_grades, text="INFANTIL (2-14)", font=("Roboto", 12, "bold"), text_color="#3b8ed0").grid(row=3, column=0, columnspan=10, sticky="w", padx=5, pady=(10,2))
             for i, tam in enumerate(self.tamanhos_alvo[10:]):
-                ctk.CTkLabel(self.frame_grades, text=tam).grid(row=4, column=i, padx=6)
-                self.entradas_grade[tam] = ctk.CTkEntry(self.frame_grades, width=52, justify="center")
+                ctk.CTkLabel(self.frame_grades, text=tam, font=("Roboto", 12)).grid(row=4, column=i, padx=6)
+                self.entradas_grade[tam] = ctk.CTkEntry(self.frame_grades, width=55, justify="center")
                 self.entradas_grade[tam].insert(0, "0")
                 self.entradas_grade[tam].grid(row=5, column=i, padx=2, pady=2)
 
@@ -141,12 +149,23 @@ try:
             dados_l = []
 
             for i, linha in df.iterrows():
-                # Transforma a linha em string para facilitar a busca do termo "LOTE"
                 l_str = " ".join([str(val) for val in linha.values if pd.notna(val)]).upper()
                 
                 if "LOTE:" in l_str:
                     lote_atual = str(linha[0]).strip().upper() if "LOTE:" in str(linha[0]).upper() else str(linha[1]).strip().upper()
-                    self.lotes_na_aba[lote_atual] = {"itens": [], "aba": n_aba}
+                    
+                    # NOVO: Inicia a grade zerada
+                    grade_lote = {t: 0 for t in self.tamanhos_alvo}
+                    
+                    # NOVO: Scanner Vertical - vasculha as próximas 20 linhas do Excel
+                    for r in range(i, min(i + 20, len(df))):
+                        celula_e = str(df.iloc[r, 4]).upper() if len(df.columns) > 4 else ""
+                        for t in self.tamanhos_alvo:
+                            m = re.search(rf"\b{t}\b\s*[=:]\s*(\d+)", celula_e)
+                            if m and grade_lote[t] == 0: 
+                                grade_lote[t] = int(m.group(1))
+
+                    self.lotes_na_aba[lote_atual] = {"itens": [], "aba": n_aba, "grade": grade_lote}
                     dados_l = self.lotes_na_aba[lote_atual]["itens"]
                 
                 # Coleta dados das cores (ignora cabeçalhos internos)
@@ -179,14 +198,18 @@ try:
         def carregar_dados_lote(self, n):
             if n == "-": return
             
-            # Limpa todas as caixas de texto de grade para não herdar lixo de lote anterior
-            for ent in self.entradas_grade.values(): 
-                ent.delete(0, 'end')
-                ent.insert(0, "0")
+            lote = self.lotes_na_aba.get(n)
+            if not lote: return
+
+            self.lista_cores_atual = lote["itens"]
             
-            self.lista_cores_atual = self.lotes_na_aba[n]["itens"]
+            # NOVO: Injeta os valores escaneados nas caixinhas da tela automaticamente
+            for tam in self.tamanhos_alvo:
+                valor = lote.get("grade", {}).get(tam, 0)
+                self.entradas_grade[tam].delete(0, 'end')
+                self.entradas_grade[tam].insert(0, str(valor))
+                
             self.tabela.delete(*self.tabela.get_children())
-            
             soma = sum([i['total'] for i in self.lista_cores_atual])
             self.label_soma_total.configure(text=f"TOTAL DO LOTE: {soma} PEÇAS")
 
@@ -225,13 +248,14 @@ try:
                             grade_cor[t] = math.floor(valor_exato)
                             fracoes[t] = valor_exato - math.floor(valor_exato)
                     
-                    # 2. Distribui a sobra rigorosamente para quem teve a maior perda fracionária
+                    # 2. SOLUÇÃO MATEMÁTICA CORRIGIDA: Loop para não perder peças
                     sobra = total_cor - sum(grade_cor.values())
                     if sobra > 0:
                         tams_ativos = [t for t, p in pesos.items() if p > 0]
-                        tams_ord = sorted(tams_ativos, key=lambda x: fracoes[x], reverse=True)
-                        for i in range(sobra): 
-                            grade_cor[tams_ord[i % len(tams_ord)]] += 1
+                        if tams_ativos:
+                            tams_ord = sorted(tams_ativos, key=lambda x: fracoes[x], reverse=True)
+                            for i in range(sobra): 
+                                grade_cor[tams_ord[i % len(tams_ord)]] += 1
                     
                     # 3. Faz o Rateio (Split) exato caso a cor atenda a múltiplas referências
                     for idx, ref in enumerate(refs):
@@ -246,6 +270,7 @@ try:
             except Exception as e: 
                 messagebox.showerror("Erro de Cálculo", traceback.format_exc())
 
+
     # =======================================================
     # MÓDULO 2: SETOR ALMOXARIFADO (ESTOQUE)
     # =======================================================
@@ -253,7 +278,7 @@ try:
         def __init__(self, master):
             super().__init__(master)
             self.title("TEXAS FARM - Setor Almoxarifado/Estoque")
-            self.geometry("1000x750")
+            self.geometry("1100x800")
             self.protocol("WM_DELETE_WINDOW", self.fechar_e_voltar)
             
             # Diretório de gravação do histórico da rede Texas Farm
@@ -269,28 +294,34 @@ try:
 
             self.frame_controles = ctk.CTkFrame(self)
             self.frame_controles.pack(pady=5, padx=20, fill="x")
-            ctk.CTkButton(self.frame_controles, text="📂 1. ABRIR PLANILHA", command=self.importar_excel, fg_color="#1D6F42").pack(side="left", padx=5, pady=10)
-            ctk.CTkButton(self.frame_controles, text="🔄 2. ESTOQUE ATUAL", command=self.ver_estoque, fg_color="#2fa572").pack(side="left", padx=5, pady=10)
-            ctk.CTkButton(self.frame_controles, text="🧵 3. ATUALIZAR ESTOQUE", command=self.calcular_saldo, fg_color="#1f538d").pack(side="left", padx=5, pady=10)
-            self.btn_confirmar = ctk.CTkButton(self.frame_controles, text="✔️ 4. CONFIRMAR E SALVAR NO EXCEL", command=self.salvar_historico_e_excel, fg_color="#8b0000", state="disabled")
+            ctk.CTkButton(self.frame_controles, text="📂 1. ABRIR PLANILHA", command=self.importar_excel, fg_color="#1D6F42", font=("Roboto", 13, "bold")).pack(side="left", padx=5, pady=10)
+            ctk.CTkButton(self.frame_controles, text="🔄 2. ESTOQUE ATUAL", command=self.ver_estoque, fg_color="#2fa572", font=("Roboto", 13, "bold")).pack(side="left", padx=5, pady=10)
+            ctk.CTkButton(self.frame_controles, text="🧵 3. ATUALIZAR ESTOQUE", command=self.calcular_saldo, fg_color="#1f538d", font=("Roboto", 13, "bold")).pack(side="left", padx=5, pady=10)
+            self.btn_confirmar = ctk.CTkButton(self.frame_controles, text="✔️ 4. CONFIRMAR E SALVAR NO EXCEL", command=self.salvar_historico_e_excel, fg_color="#8b0000", state="disabled", font=("Roboto", 13, "bold"))
             self.btn_confirmar.pack(side="left", padx=5, pady=10)
 
             self.frame_seletores_est = ctk.CTkFrame(self)
             self.frame_seletores_est.pack(pady=5, padx=20, fill="x")
             
-            ctk.CTkLabel(self.frame_seletores_est, text="Aba do Lote:").grid(row=0, column=0, padx=5, pady=5)
+            ctk.CTkLabel(self.frame_seletores_est, text="Aba do Lote:", font=("Roboto", 12)).grid(row=0, column=0, padx=5, pady=5)
             self.menu_aba_lote = ctk.CTkOptionMenu(self.frame_seletores_est, values=["-"])
             self.menu_aba_lote.grid(row=0, column=1, padx=5, pady=5)
             
-            ctk.CTkLabel(self.frame_seletores_est, text="Aba do Estoque:").grid(row=0, column=2, padx=5, pady=5)
+            ctk.CTkLabel(self.frame_seletores_est, text="Aba do Estoque:", font=("Roboto", 12)).grid(row=0, column=2, padx=5, pady=5)
             self.menu_aba_est = ctk.CTkOptionMenu(self.frame_seletores_est, values=["-"])
             self.menu_aba_est.grid(row=0, column=3, padx=5, pady=5)
 
-            self.lbl_status = ctk.CTkLabel(self, text="Selecione a planilha...", text_color="gray")
+            self.lbl_status = ctk.CTkLabel(self, text="Selecione a planilha...", text_color="gray", font=("Roboto", 14))
             self.lbl_status.pack(pady=5)
 
             self.frame_tabela = ctk.CTkFrame(self)
             self.frame_tabela.pack(fill="both", expand=True, padx=20, pady=10)
+
+            style = ttk.Style()
+            style.theme_use("clam")
+            style.configure("Treeview", font=("Roboto", 13), rowheight=30, background="#2b2b2b", foreground="white")
+            style.configure("Treeview.Heading", font=("Roboto", 14, "bold"), background="#d08d3b", foreground="white")
+
             self.tabela = ttk.Treeview(self.frame_tabela, show="headings")
             self.tabela.pack(fill="both", expand=True)
 
@@ -501,8 +532,8 @@ try:
             sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
             self.geometry(f"500x400+{(sw-500)//2}+{(sh-400)//2}")
             ctk.CTkLabel(self, text="TEXAS FARM", font=("Roboto", 28, "bold")).pack(pady=(40, 5))
-            ctk.CTkButton(self, text="⚙️ PCP", height=70, width=300, command=self.abrir_pcp).pack(pady=10)
-            ctk.CTkButton(self, text="📦 ESTOQUE", height=70, width=300, fg_color="#d08d3b", command=self.abrir_estoque).pack(pady=10)
+            ctk.CTkButton(self, text="⚙️ PCP", height=70, width=300, font=("Roboto", 15, "bold"), command=self.abrir_pcp).pack(pady=10)
+            ctk.CTkButton(self, text="📦 ESTOQUE DE ROLOS", height=70, width=300, font=("Roboto", 15, "bold"), fg_color="#d08d3b", command=self.abrir_estoque).pack(pady=10)
         
         def abrir_pcp(self): self.withdraw(); JanelaPCP(self)
         def abrir_estoque(self): self.withdraw(); JanelaEstoque(self)
