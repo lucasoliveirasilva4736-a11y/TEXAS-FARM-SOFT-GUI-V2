@@ -30,7 +30,7 @@ try:
             # -------------------------------------------------------------
             # !!! AJUSTE AQUI O CAMINHO EXATO DO SEU ARQUIVO DE CORES !!!
             # -------------------------------------------------------------
-            self.caminho_arquivo_cores = r"Z:\Programação Corte.xlsx" 
+            self.caminho_arquivo_cores = r"Z:\Programação Corte\Cores_Modelos_PCP_Atualizado.xlsx" 
             # Se for dentro de uma pasta, mude para: r"Z:\Programação Corte\NOME_DO_ARQUIVO.xlsx"
             
             self.dados_cores = {}
