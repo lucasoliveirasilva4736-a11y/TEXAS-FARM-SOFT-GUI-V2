@@ -10,8 +10,8 @@ try:
     import customtkinter as ctk
     from tkinter import messagebox, ttk, filedialog
     import pandas as pd
-    from openpyxl import load_workbook
-    from openpyxl.styles import Border, Side
+    from openpyxl import load_workbook, Workbook
+    from openpyxl.styles import Border, Side, PatternFill, Font, Alignment
 
     # Configuração visual do sistema
     ctk.set_appearance_mode("dark")
@@ -24,22 +24,25 @@ try:
         def __init__(self, master):
             super().__init__(master)
             self.title("TEXAS FARM - Base de Cores do Sistema")
-            self.geometry("1100x700")
+            self.geometry("1200x750")
             self.attributes("-topmost", True)
             
-            self.caminho_arquivo = None
+            # -------------------------------------------------------------
+            # !!! AJUSTE AQUI O CAMINHO EXATO DO SEU ARQUIVO DE CORES !!!
+            # -------------------------------------------------------------
+            self.caminho_arquivo_cores = r"Z:\Programação Corte.xlsx" 
+            # Se for dentro de uma pasta, mude para: r"Z:\Programação Corte\NOME_DO_ARQUIVO.xlsx"
+            
             self.dados_cores = {}
             
             # --- CONSTRUÇÃO DA INTERFACE ---
-            # Topo (Seleção de Arquivo)
             self.frame_topo = ctk.CTkFrame(self)
             self.frame_topo.pack(pady=10, padx=20, fill="x")
             
-            self.btn_carregar = ctk.CTkButton(self.frame_topo, text="📂 1. ABRIR PLANILHA DE CORES", command=self.carregar_planilha, fg_color="#8B4513", hover_color="#5C2E0B", font=("Roboto", 13, "bold"))
-            self.btn_carregar.pack(side="left", padx=10, pady=10)
+            ctk.CTkLabel(self.frame_topo, text="🎨 BANCO DE DADOS DE CORES E MODELOS", font=("Roboto", 18, "bold"), text_color="#2fa572").pack(pady=10)
             
-            self.lbl_arquivo = ctk.CTkLabel(self.frame_topo, text="Nenhuma planilha de cores base carregada...", text_color="gray", font=("Roboto", 13))
-            self.lbl_arquivo.pack(side="left", padx=10)
+            self.lbl_arquivo = ctk.CTkLabel(self.frame_topo, text=f"Arquivo Vinculado: {self.caminho_arquivo_cores}", text_color="gray", font=("Roboto", 12))
+            self.lbl_arquivo.pack()
             
             # Layout Principal (Tabela à esquerda, Formulário à direita)
             self.frame_corpo = ctk.CTkFrame(self, fg_color="transparent")
@@ -70,41 +73,59 @@ try:
                 self.tabela.column(col, width=largura, anchor="center")
             self.tabela.pack(fill="both", expand=True, padx=10, pady=(0,10))
             
-            # DIREITA: Formulário de Cadastro
-            self.frame_dir = ctk.CTkFrame(self.frame_corpo, width=380)
+            # DIREITA: Painel Duplo (Criar Modelo / Criar Cor)
+            self.frame_dir = ctk.CTkScrollableFrame(self.frame_corpo, width=400)
             self.frame_dir.pack(side="right", fill="y")
-            self.frame_dir.pack_propagate(False)
             
-            ctk.CTkLabel(self.frame_dir, text="✨ CADASTRAR NOVA COR", font=("Roboto", 18, "bold"), text_color="#d08d3b").pack(pady=20)
+            # --- SEÇÃO 1: CRIAR NOVO MODELO (ABA) ---
+            self.frame_novo_mod = ctk.CTkFrame(self.frame_dir)
+            self.frame_novo_mod.pack(fill="x", pady=(0, 20), padx=5)
             
-            ctk.CTkLabel(self.frame_dir, text="Modelo (Selecionar Aba):", font=("Roboto", 13, "bold")).pack(anchor="w", padx=20)
-            self.combo_modelo_novo = ctk.CTkOptionMenu(self.frame_dir, values=["-"], command=self.autocompletar_tecido)
-            self.combo_modelo_novo.pack(fill="x", padx=20, pady=(0, 15))
+            ctk.CTkLabel(self.frame_novo_mod, text="✨ 1. CRIAR NOVO MODELO (ABA)", font=("Roboto", 15, "bold"), text_color="#3b8ed0").pack(pady=(15,10))
             
-            ctk.CTkLabel(self.frame_dir, text="Tecido (Automático/Manual):", font=("Roboto", 13, "bold")).pack(anchor="w", padx=20)
-            self.entry_tecido = ctk.CTkEntry(self.frame_dir)
-            self.entry_tecido.pack(fill="x", padx=20, pady=(0, 15))
+            ctk.CTkLabel(self.frame_novo_mod, text="Nome do Novo Modelo:", font=("Roboto", 12)).pack(anchor="w", padx=20)
+            self.entry_novo_modelo_aba = ctk.CTkEntry(self.frame_novo_mod, placeholder_text="Ex: Jaqueta")
+            self.entry_novo_modelo_aba.pack(fill="x", padx=20, pady=(0, 10))
             
-            ctk.CTkLabel(self.frame_dir, text="Nome Comercial da Cor:", font=("Roboto", 13, "bold")).pack(anchor="w", padx=20)
-            self.entry_cor_comercial = ctk.CTkEntry(self.frame_dir, placeholder_text="Ex: Azul Intense")
-            self.entry_cor_comercial.pack(fill="x", padx=20, pady=(0, 15))
+            self.btn_criar_aba = ctk.CTkButton(self.frame_novo_mod, text="✚ CRIAR ABA NO EXCEL", height=40, font=("Roboto", 13, "bold"), fg_color="#1D6F42", hover_color="#144d2e", command=self.criar_nova_aba)
+            self.btn_criar_aba.pack(fill="x", padx=20, pady=(0, 20))
             
-            ctk.CTkLabel(self.frame_dir, text="Nome no Sistema (Sistema / ERP):", font=("Roboto", 13, "bold")).pack(anchor="w", padx=20)
-            self.entry_cor_sistema = ctk.CTkEntry(self.frame_dir, placeholder_text="Ex: Azul Dinamarca")
-            self.entry_cor_sistema.pack(fill="x", padx=20, pady=(0, 25))
+            # --- SEÇÃO 2: CADASTRAR NOVA COR ---
+            self.frame_nova_cor = ctk.CTkFrame(self.frame_dir)
+            self.frame_nova_cor.pack(fill="x", padx=5)
             
-            self.btn_salvar = ctk.CTkButton(self.frame_dir, text="💾 SALVAR E ADICIONAR NO EXCEL", height=45, font=("Roboto", 14, "bold"), fg_color="#2fa572", hover_color="#237a54", command=self.salvar_nova_cor)
-            self.btn_salvar.pack(fill="x", padx=20, pady=10)
+            ctk.CTkLabel(self.frame_nova_cor, text="🎨 2. CADASTRAR NOVA COR", font=("Roboto", 15, "bold"), text_color="#d08d3b").pack(pady=(15,10))
+            
+            ctk.CTkLabel(self.frame_nova_cor, text="Escolher Modelo (Aba Existente):", font=("Roboto", 12)).pack(anchor="w", padx=20)
+            self.combo_modelo_novo = ctk.CTkOptionMenu(self.frame_nova_cor, values=["-"], command=self.autocompletar_tecido)
+            self.combo_modelo_novo.pack(fill="x", padx=20, pady=(0, 10))
+            
+            ctk.CTkLabel(self.frame_nova_cor, text="Tecido (Automático/Manual):", font=("Roboto", 12)).pack(anchor="w", padx=20)
+            self.entry_tecido = ctk.CTkEntry(self.frame_nova_cor)
+            self.entry_tecido.pack(fill="x", padx=20, pady=(0, 10))
+            
+            ctk.CTkLabel(self.frame_nova_cor, text="Nome Comercial da Cor:", font=("Roboto", 12)).pack(anchor="w", padx=20)
+            self.entry_cor_comercial = ctk.CTkEntry(self.frame_nova_cor, placeholder_text="Ex: Azul Intense")
+            self.entry_cor_comercial.pack(fill="x", padx=20, pady=(0, 10))
+            
+            ctk.CTkLabel(self.frame_nova_cor, text="Nome no Sistema (Parênteses):", font=("Roboto", 12)).pack(anchor="w", padx=20)
+            self.entry_cor_sistema = ctk.CTkEntry(self.frame_nova_cor, placeholder_text="Ex: Azul Dinamarca")
+            self.entry_cor_sistema.pack(fill="x", padx=20, pady=(0, 20))
+            
+            self.btn_salvar_cor = ctk.CTkButton(self.frame_nova_cor, text="💾 SALVAR COR NO EXCEL", height=45, font=("Roboto", 14, "bold"), fg_color="#2fa572", hover_color="#237a54", command=self.salvar_nova_cor)
+            self.btn_salvar_cor.pack(fill="x", padx=20, pady=(0, 20))
+            
+            # AUTO-CARREGAMENTO
+            self.after(500, self.carregar_planilha_automatica)
 
         # --- Funções do Gerenciador de Cores ---
-        def carregar_planilha(self):
-            c = filedialog.askopenfilename(filetypes=[("Excel", "*.xlsx *.xls")])
-            if not c: return
-            self.caminho_arquivo = c
-            self.lbl_arquivo.configure(text=f"Base Carregada: {c.split('/')[-1]}", text_color="#2fa572")
+        def carregar_planilha_automatica(self):
+            if not os.path.exists(self.caminho_arquivo_cores):
+                messagebox.showwarning("Aviso", f"Arquivo não encontrado no caminho automático:\n{self.caminho_arquivo_cores}\n\nPor favor, verifique se o caminho no código está correto, ou se o pendrive/rede Z: está conectado.", parent=self)
+                return
             
             try:
-                xl = pd.ExcelFile(c)
+                xl = pd.ExcelFile(self.caminho_arquivo_cores)
                 self.dados_cores = {aba: pd.read_excel(xl, sheet_name=aba) for aba in xl.sheet_names}
                 abas = list(self.dados_cores.keys())
                 
@@ -117,28 +138,25 @@ try:
                     self.exibir_cores_aba(abas[0])
                     self.autocompletar_tecido(abas[0])
                     
-                messagebox.showinfo("Sucesso", "Base de cores carregada com sucesso!", parent=self)
+                self.lbl_arquivo.configure(text=f"Base Conectada e Sincronizada: {self.caminho_arquivo_cores}", text_color="#2fa572")
             except Exception as e:
-                messagebox.showerror("Erro", f"Erro ao ler arquivo:\n{e}", parent=self)
+                messagebox.showerror("Erro Crítico", f"Falha ao ler a base de cores automaticamente:\n{e}", parent=self)
 
         def extrair_nomes(self, cor_bruta):
-            # Tenta achar o texto que está entre parênteses
             m = re.search(r'\((.*?)\)', cor_bruta)
             if m:
                 sistema = m.group(1).strip()
-                # Remove o que está entre parênteses (incluindo eles) para pegar o nome comercial limpo
                 comercial = cor_bruta.replace(f"({m.group(1)})", "").strip()
                 return comercial, sistema
             return cor_bruta, "-"
                 
         def exibir_cores_aba(self, aba):
-            if not self.caminho_arquivo or aba not in self.dados_cores: return
+            if aba not in self.dados_cores: return
             df = self.dados_cores[aba]
             
             self.tabela.delete(*self.tabela.get_children())
             
             for _, row in df.iterrows():
-                # Adaptável caso a planilha mude levemente os cabeçalhos
                 colunas = list(df.columns)
                 modelo = str(row[colunas[0]]) if len(colunas) > 0 else aba
                 tecido = str(row[colunas[1]]) if len(colunas) > 1 else ""
@@ -153,21 +171,84 @@ try:
             if aba in self.dados_cores:
                 df = self.dados_cores[aba]
                 if not df.empty and len(df.columns) > 1:
-                    # Puxa o tecido da primeira linha do modelo
                     tecido = str(df.iloc[0, 1])
                     if tecido.upper() != "NAN":
                         self.entry_tecido.delete(0, 'end')
                         self.entry_tecido.insert(0, tecido)
-                    
-        def salvar_nova_cor(self):
-            if not self.caminho_arquivo:
-                messagebox.showwarning("Aviso", "Abra a planilha de Cores base primeiro!", parent=self)
+                        
+        def criar_nova_aba(self):
+            novo_modelo = self.entry_novo_modelo_aba.get().strip()
+            
+            if not novo_modelo:
+                messagebox.showwarning("Atenção", "Digite um nome para o novo Modelo/Aba!", parent=self)
                 return
                 
+            if novo_modelo in self.dados_cores:
+                messagebox.showwarning("Atenção", f"Já existe uma aba chamada '{novo_modelo}'!", parent=self)
+                return
+                
+            if not os.path.exists(self.caminho_arquivo_cores):
+                messagebox.showerror("Erro", "Arquivo base não encontrado para edição.", parent=self)
+                return
+                
+            try:
+                wb = load_workbook(self.caminho_arquivo_cores)
+                
+                # Cria a nova aba no final
+                ws = wb.create_sheet(title=novo_modelo)
+                
+                # Configurar Estilos do Cabeçalho (Igual à sua base)
+                verde_fundo = PatternFill(start_color="D7E4BC", end_color="D7E4BC", fill_type="solid")
+                fonte_negrito = Font(bold=True)
+                alinhamento = Alignment(horizontal="center", vertical="center")
+                thin = Side(border_style="thin", color="000000")
+                borda = Border(top=thin, left=thin, right=thin, bottom=thin)
+                
+                # Escrever cabeçalho padrão
+                headers = ["Modelo", "Tecido (Nome no Sistema)", "Cor Disponível"]
+                for col_idx, col_name in enumerate(headers, start=1):
+                    celula = ws.cell(row=1, column=col_idx, value=col_name)
+                    celula.fill = verde_fundo
+                    celula.font = fonte_negrito
+                    celula.alignment = alinhamento
+                    celula.border = borda
+                    
+                # Ajustar largura das colunas
+                ws.column_dimensions['A'].width = 20
+                ws.column_dimensions['B'].width = 30
+                ws.column_dimensions['C'].width = 50
+                
+                wb.save(self.caminho_arquivo_cores)
+                
+                # Atualizar Sistema Virtualmente
+                self.dados_cores[novo_modelo] = pd.DataFrame(columns=headers)
+                abas = list(self.dados_cores.keys())
+                self.menu_abas.configure(values=abas)
+                self.combo_modelo_novo.configure(values=abas)
+                
+                # Selecionar a nova aba
+                self.menu_abas.set(novo_modelo)
+                self.combo_modelo_novo.set(novo_modelo)
+                self.exibir_cores_aba(novo_modelo)
+                
+                self.entry_novo_modelo_aba.delete(0, 'end')
+                
+                messagebox.showinfo("Sucesso", f"O modelo/aba '{novo_modelo}' foi criado com sucesso no Excel!", parent=self)
+                
+            except PermissionError:
+                messagebox.showerror("Erro de Permissão", "O Excel está ABERTO! Feche o arquivo para o sistema conseguir criar a aba.", parent=self)
+            except Exception as e:
+                messagebox.showerror("Erro Crítico", f"Erro ao tentar criar nova aba:\n{traceback.format_exc()}", parent=self)
+                    
+        def salvar_nova_cor(self):
             aba = self.combo_modelo_novo.get()
             tecido = self.entry_tecido.get().strip()
             comercial = self.entry_cor_comercial.get().strip()
             sistema = self.entry_cor_sistema.get().strip()
+            
+            if aba == "-" or not aba:
+                messagebox.showwarning("Aviso", "Selecione um Modelo/Aba para salvar a cor!", parent=self)
+                return
             
             if not comercial or not sistema:
                 messagebox.showwarning("Aviso", "Preencha o nome Comercial e o nome no Sistema!", parent=self)
@@ -177,26 +258,24 @@ try:
             cor_final = f"{comercial} ({sistema})"
             
             try:
-                wb = load_workbook(self.caminho_arquivo)
+                wb = load_workbook(self.caminho_arquivo_cores)
                 if aba not in wb.sheetnames:
                     messagebox.showerror("Erro", f"Aba '{aba}' não encontrada no arquivo.", parent=self)
                     return
                 ws = wb[aba]
                 
-                # Identificar a primeira linha totalmente vazia
                 nova_linha = ws.max_row + 1
                 
                 ws.cell(row=nova_linha, column=1, value=aba)
                 ws.cell(row=nova_linha, column=2, value=tecido)
                 ws.cell(row=nova_linha, column=3, value=cor_final)
                 
-                # Desenhar a bordinha padrão no Excel
                 thin = Side(border_style="thin", color="000000")
                 borda = Border(top=thin, left=thin, right=thin, bottom=thin)
                 for col in range(1, 4):
                     ws.cell(row=nova_linha, column=col).border = borda
                 
-                wb.save(self.caminho_arquivo)
+                wb.save(self.caminho_arquivo_cores)
                 
                 # Atualizar a tabela virtual na hora
                 colunas = list(self.dados_cores[aba].columns)
@@ -205,15 +284,13 @@ try:
                     df_temp = pd.DataFrame([nova_linha_df])
                     self.dados_cores[aba] = pd.concat([self.dados_cores[aba], df_temp], ignore_index=True)
                 
-                # Dar refresh no visual se estiver na mesma aba
                 if self.menu_abas.get() == aba:
                     self.exibir_cores_aba(aba)
                     
-                # Limpar as caixinhas de entrada para agilizar a próxima
                 self.entry_cor_comercial.delete(0, 'end')
                 self.entry_cor_sistema.delete(0, 'end')
                 
-                messagebox.showinfo("Sucesso", f"Cor cadastrada!\n\nFoi adicionado: {cor_final}\n\nGravado com sucesso no Excel.", parent=self)
+                messagebox.showinfo("Sucesso", f"Cor cadastrada!\n\nFoi adicionado: {cor_final}", parent=self)
                 
             except PermissionError:
                 messagebox.showerror("Erro de Permissão", "O Excel base das cores está ABERTO! Feche o arquivo para o sistema conseguir salvar.", parent=self)
@@ -231,17 +308,13 @@ try:
             self.geometry("1300x950")
             self.protocol("WM_DELETE_WINDOW", self.fechar_e_voltar)
 
-            # Variáveis de controle de estado
             self.caminho_arquivo = None
             self.abas_disponiveis = {}
             self.lotes_na_aba = {}
             self.lista_cores_atual = []
             self.fixado = False
-            
-            # Grade padrão de tamanhos da fábrica
             self.tamanhos_alvo = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'G1', 'G2', 'G3', 'G4', '2', '4', '6', '8', '10', '12', '14']
 
-            # --- CONSTRUÇÃO DA INTERFACE ---
             self.frame_topo = ctk.CTkFrame(self, fg_color="transparent")
             self.frame_topo.pack(pady=10, fill="x")
             
@@ -256,18 +329,15 @@ try:
             self.frame_excel = ctk.CTkFrame(self.frame_main)
             self.frame_excel.pack(pady=5, fill="x", padx=5)
 
-            # Alterado: Um frame dedicado para os botões do topo do PCP
             self.frame_botoes_acao = ctk.CTkFrame(self.frame_excel, fg_color="transparent")
             self.frame_botoes_acao.pack(pady=10)
 
             self.btn_excel = ctk.CTkButton(self.frame_botoes_acao, text="📂 1. LER PLANILHA DE PRODUÇÃO", fg_color="#1D6F42", hover_color="#144d2e", command=self.importar_excel)
             self.btn_excel.pack(side="left", padx=10)
 
-            # NOVO BOTÃO: Chama a Janela de Cores
             self.btn_cores = ctk.CTkButton(self.frame_botoes_acao, text="🎨 2. GERENCIAR CORES (BASE)", fg_color="#8B4513", hover_color="#5C2E0B", command=self.abrir_gerenciador_cores)
             self.btn_cores.pack(side="left", padx=10)
 
-            # Seletores de Filtro e Abas
             self.frame_seletores = ctk.CTkFrame(self.frame_excel, fg_color="transparent")
             self.frame_seletores.pack(fill="x", padx=10, pady=5)
 
@@ -281,7 +351,6 @@ try:
             self.menu_lotes = ctk.CTkOptionMenu(self.frame_seletores, values=["-"], command=self.carregar_dados_lote, width=200)
             self.menu_lotes.grid(row=0, column=3, padx=5)
 
-            # Entradas de peso da grade
             self.frame_grades = ctk.CTkFrame(self.frame_main, fg_color="transparent")
             self.frame_grades.pack(pady=10)
             self.entradas_grade = {}
@@ -290,14 +359,12 @@ try:
             self.btn_calc = ctk.CTkButton(self.frame_main, text="3. CALCULAR GRADE EXATA", height=50, command=self.executar_grade_pcp, fg_color="#3b8ed0")
             self.btn_calc.pack(pady=20)
 
-            # Tabela de Resultados
             self.frame_res = ctk.CTkFrame(self.frame_main)
             self.frame_res.pack(pady=5, fill="both", expand=True)
 
             self.label_soma_total = ctk.CTkLabel(self.frame_res, text="TOTAL DO LOTE: 0 PEÇAS", font=("Roboto", 18, "bold"))
             self.label_soma_total.pack(pady=10)
 
-            # --- FORMATAÇÃO DA TABELA (FONTE MAIOR) ---
             style = ttk.Style()
             style.theme_use("clam")
             style.configure("Treeview", font=("Roboto", 12), rowheight=30, background="#2b2b2b", foreground="white")
@@ -312,9 +379,7 @@ try:
                 self.tabela.column(col, width=largura, anchor="center")
             self.tabela.pack(fill="both", expand=True)
 
-        # --- FUNÇÕES DO PCP ---
         def abrir_gerenciador_cores(self):
-            # Abre a interface de visualização e adição de cores base
             JanelaGerenciadorCores(self)
 
         def alternar_fixar(self): 
@@ -352,7 +417,7 @@ try:
                 if n:
                     self.menu_abas.set(n[0])
                     self.processar_lotes_da_planilha(n[0])
-                messagebox.showinfo("Sucesso", "Planilha carregada e dados lidos com sucesso!")
+                messagebox.showinfo("Sucesso", "Planilha carregada com sucesso!")
             except Exception as e: 
                 messagebox.showerror("Erro", f"Erro ao ler arquivo: {e}")
 
@@ -370,11 +435,8 @@ try:
                 
                 if "LOTE:" in l_str:
                     lote_atual = str(linha[0]).strip().upper() if "LOTE:" in str(linha[0]).upper() else str(linha[1]).strip().upper()
-                    
-                    # Inicia a grade zerada
                     grade_lote = {t: 0 for t in self.tamanhos_alvo}
                     
-                    # SCANNER VERTICAL TURBINADO
                     for r in range(i, min(i + 20, len(df))):
                         for col_idx in range(2, min(7, len(df.columns))):
                             celula = str(df.iloc[r, col_idx]).upper()
@@ -386,7 +448,6 @@ try:
                     self.lotes_na_aba[lote_atual] = {"itens": [], "aba": n_aba, "grade": grade_lote}
                     dados_l = self.lotes_na_aba[lote_atual]["itens"]
                 
-                # Coleta dados das cores (ignora cabeçalhos internos)
                 elif lote_atual and not pd.isna(linha[1]) and not pd.isna(linha[2]):
                     cor = str(linha[1]).upper()
                     if "COR" in cor or "TOTAL" in cor or "QUANT" in str(linha[2]).upper(): continue
@@ -415,13 +476,10 @@ try:
                 
         def carregar_dados_lote(self, n):
             if n == "-": return
-            
             lote = self.lotes_na_aba.get(n)
             if not lote: return
-
             self.lista_cores_atual = lote["itens"]
             
-            # Injeta os valores escaneados nas caixinhas
             for tam in self.tamanhos_alvo:
                 valor = lote.get("grade", {}).get(tam, 0)
                 self.entradas_grade[tam].delete(0, 'end')
@@ -484,7 +542,6 @@ try:
                 self.label_soma_total.configure(text=f"TOTAL CALCULADO: {soma_geral} PEÇAS")
             except Exception as e: 
                 messagebox.showerror("Erro de Cálculo", traceback.format_exc())
-
 
     # =======================================================
     # MÓDULO 2: SETOR ALMOXARIFADO (ESTOQUE)
